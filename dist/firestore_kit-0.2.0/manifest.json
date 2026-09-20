@@ -1,0 +1,44 @@
+{
+  "format": "dartpub-binary/1",
+  "name": "firestore_kit",
+  "version": "0.2.0",
+  "owner": "edkluivert",
+  "platforms": {},
+  "dart": {
+    "package": "firestore_kit",
+    "lib_entry": "firestore_kit.dart",
+    "registrant_call": "firestore_kitBindings.loadSymbols();"
+  },
+  "pubspec": {
+    "name": "firestore_kit",
+    "description": "Cloud Firestore for DartNative: the complete cloud_firestore API in pure Dart over REST and gRPC, with realtime listeners, offline writes, and pluggable caching.",
+    "version": "0.2.0",
+    "repository": "https://github.com/edkluivert/firestore_kit",
+    "topics": [
+      "dartnative",
+      "firebase",
+      "firestore",
+      "cloudstore"
+    ],
+    "environment": {
+      "sdk": "^3.11.0"
+    },
+    "dependencies": {
+      "collection": "^1.19.0",
+      "fixnum": "^1.1.0",
+      "googleapis": "^16.0.0",
+      "grpc": "^5.1.0",
+      "http": "^1.2.0",
+      "meta": "^1.11.0",
+      "protobuf": "^6.1.0"
+    },
+    "dev_dependencies": {
+      "googleapis_auth": "^2.3.3",
+      "lints": "^6.0.0",
+      "test": "^1.32.0",
+      "async": "^2.11.0"
+    }
+  },
+  "built_at": "2026-09-20T06:49:12.895788Z",
+  "built_by": "dn plugin build"
+}
