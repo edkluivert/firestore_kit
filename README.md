@@ -1,8 +1,10 @@
 # firestore_kit
 
-The **Cloud Firestore** slice of Firebase for DartNative — the complete `cloud_firestore` API,
-implemented in pure Dart on top of Firestore's REST and gRPC endpoints. iOS, Android, macOS,
-Linux, Windows, and plain Dart on servers and the command line.
+**Cloud Firestore for DartNative, in pure Dart.**
+
+The complete `cloud_firestore` API, implemented on top of Firestore's REST and gRPC endpoints
+instead of the native SDK. iOS, Android, macOS, Linux, Windows, and plain Dart on servers and
+the command line.
 
 > This is a data-layer package, not a native plugin. Firestore is one of the Firebase services
 > that Dart can reach directly over its public APIs, so there is no native SDK to wrap — and no

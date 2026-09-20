@@ -1,8 +1,7 @@
 name: firestore_kit
 description: >-
-  Firebase Cloud Firestore for DartNative: pure Dart implementation of
-  FirebaseFirestore, collections, documents, queries, batch writes,
-  transactions, and realtime snapshot streaming.
+  Cloud Firestore for DartNative: the complete cloud_firestore API in pure Dart
+  over REST and gRPC, with realtime listeners, offline writes, and pluggable caching.
 version: 0.2.0
 repository: https://github.com/edkluivert/firestore_kit
 topics:
