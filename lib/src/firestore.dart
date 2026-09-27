@@ -233,7 +233,8 @@ class FirebaseFirestore {
           'FirebaseFirestore.initialize(projectId: ...), pass '
           '--dart-define=FIREBASE_PROJECT_ID=<id> when building, set the '
           'FIREBASE_PROJECT_ID / GOOGLE_CLOUD_PROJECT environment variable, or '
-          'ship GoogleService-Info.plist / google-services.json with the app.',
+          'ship GoogleService-Info.plist (iOS) / google-services.json with the '
+          'Google Services Gradle plugin applied (Android) with the app.',
     );
   }
 

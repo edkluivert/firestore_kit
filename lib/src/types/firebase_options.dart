@@ -1,7 +1,11 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:meta/meta.dart';
+
+import 'apk_resources.dart';
+import 'binary_plist.dart';
 
 /// The Firebase project configuration a [FirebaseFirestore] instance connects
 /// with, mirroring `firebase_core`'s `FirebaseOptions`.
@@ -131,7 +135,22 @@ class FirebaseOptions {
     String plistXml, {
     String source = 'GoogleService-Info.plist',
   }) {
-    final values = _parsePlistStrings(plistXml);
+    return FirebaseOptions._fromPlistValues(xmlPlistStrings(plistXml), source: source);
+  }
+
+  /// Parses a `GoogleService-Info.plist` from its bytes, XML or the binary
+  /// form Xcode writes into the app bundle.
+  factory FirebaseOptions.fromPlistBytes(
+    Uint8List bytes, {
+    String source = 'GoogleService-Info.plist',
+  }) {
+    return FirebaseOptions._fromPlistValues(plistStrings(bytes), source: source);
+  }
+
+  factory FirebaseOptions._fromPlistValues(
+    Map<String, String> values, {
+    required String source,
+  }) {
     final projectId = values['PROJECT_ID'];
     if (projectId == null || projectId.isEmpty) {
       throw const FormatException('GoogleService-Info.plist is missing PROJECT_ID');
@@ -149,12 +168,12 @@ class FirebaseOptions {
   /// Loads options from a `google-services.json` or `GoogleService-Info.plist`
   /// file, chosen by extension.
   static FirebaseOptions fromFile(File file) {
-    final contents = file.readAsStringSync();
-    if (file.path.toLowerCase().endsWith('.plist')) {
-      return FirebaseOptions.fromPlist(contents, source: file.path);
+    final bytes = file.readAsBytesSync();
+    if (file.path.toLowerCase().endsWith('.plist') || isBinaryPlist(bytes)) {
+      return FirebaseOptions.fromPlistBytes(bytes, source: file.path);
     }
     return FirebaseOptions.fromGoogleServicesJson(
-      Map<String, dynamic>.from(jsonDecode(contents) as Map),
+      Map<String, dynamic>.from(jsonDecode(utf8.decode(bytes)) as Map),
       source: file.path,
     );
   }
@@ -194,45 +213,116 @@ class FirebaseOptions {
     return null;
   }
 
+  /// Options from the string resources the Google Services Gradle plugin
+  /// compiles into an Android app (`project_id`, `google_api_key`,
+  /// `google_app_id`, `gcm_defaultSenderId`, `google_storage_bucket`).
+  static FirebaseOptions? fromAndroidResources(
+    Map<String, String> resources, {
+    String source = 'resources.arsc',
+  }) {
+    final projectId = _nonEmpty(resources['project_id']);
+    if (projectId == null) return null;
+    return FirebaseOptions(
+      projectId: projectId,
+      apiKey: _nonEmpty(resources['google_api_key']),
+      appId: _nonEmpty(resources['google_app_id']),
+      messagingSenderId: _nonEmpty(resources['gcm_defaultSenderId']),
+      storageBucket: _nonEmpty(resources['google_storage_bucket']),
+      source: source,
+    );
+  }
+
+  /// Options found inside the Android APK at [apkPath]: the resources written
+  /// by the Google Services Gradle plugin, or a `google-services.json`
+  /// bundled as an asset. `null` when the APK holds neither.
+  static FirebaseOptions? fromApk(String apkPath) {
+    final config = readApkFirebaseConfig(apkPath);
+    if (config == null) return null;
+    final resources = config.resources;
+    if (resources != null) {
+      final options = fromAndroidResources(resources, source: '$apkPath!resources.arsc');
+      if (options != null) return options;
+    }
+    final json = config.googleServicesJson;
+    if (json != null) {
+      try {
+        final decoded = jsonDecode(json);
+        if (decoded is Map) {
+          return FirebaseOptions.fromGoogleServicesJson(
+            Map<String, dynamic>.from(decoded),
+            source: '$apkPath!${config.assetPath}',
+          );
+        }
+      } on FormatException {
+        return null;
+      }
+    }
+    return null;
+  }
+
+  /// Options from the APK the current Android process runs from, or `null`
+  /// when not on Android or when the APK carries no Firebase configuration.
+  static FirebaseOptions? fromCurrentApk() {
+    final path = currentApkPath();
+    if (path == null) return null;
+    try {
+      return fromApk(path);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Config files bundled as DartNative / Flutter assets, found by walking the
+  /// `flutter_assets` directory an iOS or macOS app bundle ships next to the
+  /// executable.
+  static FirebaseOptions? fromBundledAssets() {
+    final exeDir = File(Platform.resolvedExecutable).parent;
+    final sep = Platform.pathSeparator;
+    final roots = <Directory>[
+      Directory('${exeDir.path}${sep}Frameworks${sep}App.framework${sep}flutter_assets'),
+      Directory('${exeDir.path}${sep}flutter_assets'),
+      Directory('${exeDir.path}$sep..${sep}Resources${sep}flutter_assets'),
+    ];
+    for (final root in roots) {
+      if (!root.existsSync()) continue;
+      try {
+        for (final entity in root.listSync(recursive: true, followLinks: false)) {
+          if (entity is! File) continue;
+          final name = entity.uri.pathSegments.last;
+          if (name == 'GoogleService-Info.plist' || name == 'google-services.json') {
+            try {
+              return fromFile(entity);
+            } on FormatException {
+              continue;
+            }
+          }
+        }
+      } on FileSystemException {
+        continue;
+      }
+    }
+    return null;
+  }
+
   /// Discovers options automatically, in order: `--dart-define`s, environment
-  /// variables, then config files. Returns `null` when nothing is found.
+  /// variables, the config files next to the app, the Android APK (Google
+  /// Services Gradle plugin resources or a bundled `google-services.json`
+  /// asset), then config files bundled as assets. Returns `null` when nothing
+  /// is found.
   static FirebaseOptions? discover({
     Map<String, String>? environment,
     Directory? directory,
   }) {
     return fromDartDefines ??
         fromEnvironment(environment) ??
-        fromFiles(directory: directory);
+        fromFiles(directory: directory) ??
+        (Platform.isAndroid ? fromCurrentApk() : null) ??
+        fromBundledAssets();
   }
 
   static String? _nonEmpty(String? value) =>
       (value == null || value.isEmpty) ? null : value;
 
-  static Map<String, String> _parsePlistStrings(String xml) {
-    final result = <String, String>{};
-    final pattern = RegExp(
-      r'<key>\s*([^<]+?)\s*</key>\s*<(string|integer|true|false)\s*/?>(?:([^<]*)</\2>)?',
-      multiLine: true,
-    );
-    for (final match in pattern.allMatches(xml)) {
-      final key = match.group(1)!;
-      final type = match.group(2)!;
-      final value = match.group(3);
-      result[key] = switch (type) {
-        'true' => 'true',
-        'false' => 'false',
-        _ => _unescapeXml(value ?? ''),
-      };
-    }
-    return result;
-  }
-
-  static String _unescapeXml(String s) => s
-      .replaceAll('&lt;', '<')
-      .replaceAll('&gt;', '>')
-      .replaceAll('&quot;', '"')
-      .replaceAll('&apos;', "'")
-      .replaceAll('&amp;', '&');
 
   /// Returns a copy with the given fields replaced.
   FirebaseOptions copyWith({

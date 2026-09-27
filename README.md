@@ -271,8 +271,8 @@ void main() async {
   await Firebase.initializeApp();
 
   FirebaseFirestore.initialize(
-    // iOS finds GoogleService-Info.plist in the bundle; Android needs
-    // --dart-define=FIREBASE_PROJECT_ID=my-project (see Platform setup).
+    // iOS finds GoogleService-Info.plist in the bundle; Android reads the
+    // google-services.json the Google Services Gradle plugin compiled in.
     cacheAdapter: FileCacheAdapter(cacheDirectory: Directory('${appSupportDir.path}/firestore')),
     useGrpcStreaming: true,
   );
@@ -768,6 +768,10 @@ Firestore needs to know which project to talk to. `firestore_kit` looks, in orde
    JSON `FIREBASE_CONFIG` that Cloud Functions and Cloud Run set
 3. A `GoogleService-Info.plist` next to the executable or under `ios/Runner/` / `macos/Runner/`,
    or a `google-services.json` in the project root or `android/app/`
+4. On Android, the installed APK: the `project_id` / `google_api_key` / `google_app_id` string
+   resources the Google Services Gradle plugin compiled from `google-services.json`, or a
+   `google-services.json` bundled as a `dartnative: assets:` entry
+5. A `GoogleService-Info.plist` / `google-services.json` bundled as an asset in the iOS bundle
 
 If none is found, `FirebaseFirestore.instance` throws a `failed-precondition` error that lists
 these options.
@@ -779,15 +783,35 @@ any Firebase app. It ships inside the app bundle and is read at launch — nothi
 
 ### Android
 
-`google-services.json` is compiled into resources by the Google Services Gradle plugin and is not
-a file at runtime, so pass the project id at build time:
+Put `google-services.json` in `android/app/` and apply the Google Services Gradle plugin, the
+standard step of every Firebase Android setup (already done if you use `dartnative_firebase`):
 
-```sh
-dn build apk --dart-define=FIREBASE_PROJECT_ID=my-project
+```kotlin
+// android/settings.gradle.kts
+plugins {
+    id("com.google.gms.google-services") version "4.4.2" apply false
+}
 ```
 
-or call `FirebaseFirestore.initialize(projectId: ...)` in `main()`. No Gradle changes are needed
-for Firestore itself.
+```kotlin
+// android/app/build.gradle.kts
+plugins {
+    id("com.google.gms.google-services")
+}
+```
+
+The plugin compiles the JSON into the app's resources and `firestore_kit` reads the project id
+back out of the installed APK at start-up. Prefer not to touch Gradle? List the file as an asset
+instead:
+
+```yaml
+dartnative:
+  assets:
+    - android/app/google-services.json
+```
+
+`--dart-define=FIREBASE_PROJECT_ID=my-project` and `FirebaseFirestore.initialize(projectId: ...)`
+remain available for CI and unusual setups.
 
 ### Servers, CLIs, CI
 

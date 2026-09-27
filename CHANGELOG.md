@@ -1,3 +1,12 @@
+## 0.2.1
+
+- **Android zero-config**: `FirebaseFirestore.instance` now reads the project from the installed
+  APK — the `project_id` / `google_api_key` / `google_app_id` string resources the Google Services
+  Gradle plugin compiles from `google-services.json`, or a `google-services.json` bundled as a
+  `dartnative: assets:` entry. `--dart-define=FIREBASE_PROJECT_ID` is no longer required on Android.
+  New `FirebaseOptions.fromApk`, `fromAndroidResources`, `fromCurrentApk`, `fromBundledAssets`.
+- Config files bundled as assets are also found in the iOS / macOS bundle's `flutter_assets`.
+
 ## 0.2.0
 
 - **Zero-config initialization**: `FirebaseFirestore.instance` discovers the project from
